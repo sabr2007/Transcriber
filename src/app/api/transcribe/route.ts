@@ -1,32 +1,8 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
+import { validateFile } from "@/lib/validation";
 
 export const maxDuration = 60;
-
-const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
-
-const ALLOWED_TYPES = new Set([
-  "audio/mpeg",
-  "audio/mp3",
-  "audio/mp4",
-  "audio/mpga",
-  "audio/m4a",
-  "audio/wav",
-  "audio/wave",
-  "audio/x-wav",
-  "audio/webm",
-  "audio/ogg",
-  "audio/flac",
-  "application/ogg",
-  "video/mp4",
-  "video/webm",
-  "video/ogg",
-]);
-
-const ALLOWED_EXTENSIONS = new Set([
-  ".mp3", ".mp4", ".mpeg", ".mpga", ".m4a", ".wav",
-  ".webm", ".ogg", ".flac",
-]);
 
 export async function POST(request: Request) {
   try {
@@ -48,27 +24,10 @@ export async function POST(request: Request) {
       );
     }
 
-    if (file.size === 0) {
+    const result = validateFile(file);
+    if (!result.valid) {
       return NextResponse.json(
-        { error: "File is empty." },
-        { status: 400 }
-      );
-    }
-
-    if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json(
-        { error: "File too large. Maximum size is 25MB." },
-        { status: 400 }
-      );
-    }
-
-    const ext = "." + file.name.split(".").pop()?.toLowerCase();
-    const typeAllowed = ALLOWED_TYPES.has(file.type) || file.type.startsWith("audio/") || file.type.startsWith("video/");
-    const extAllowed = ALLOWED_EXTENSIONS.has(ext);
-
-    if (!typeAllowed && !extAllowed) {
-      return NextResponse.json(
-        { error: "Unsupported file format. Please upload an audio or video file." },
+        { error: result.error },
         { status: 400 }
       );
     }

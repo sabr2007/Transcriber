@@ -17,8 +17,15 @@ const ALLOWED_TYPES = new Set([
   "audio/webm",
   "audio/ogg",
   "audio/flac",
+  "application/ogg",
   "video/mp4",
   "video/webm",
+  "video/ogg",
+]);
+
+const ALLOWED_EXTENSIONS = new Set([
+  ".mp3", ".mp4", ".mpeg", ".mpga", ".m4a", ".wav",
+  ".webm", ".ogg", ".flac",
 ]);
 
 export async function POST(request: Request) {
@@ -55,7 +62,11 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!ALLOWED_TYPES.has(file.type) && !file.type.startsWith("audio/") && !file.type.startsWith("video/")) {
+    const ext = "." + file.name.split(".").pop()?.toLowerCase();
+    const typeAllowed = ALLOWED_TYPES.has(file.type) || file.type.startsWith("audio/") || file.type.startsWith("video/");
+    const extAllowed = ALLOWED_EXTENSIONS.has(ext);
+
+    if (!typeAllowed && !extAllowed) {
       return NextResponse.json(
         { error: "Unsupported file format. Please upload an audio or video file." },
         { status: 400 }

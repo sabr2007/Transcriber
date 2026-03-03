@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { FileUpload } from "@/components/file-upload";
 import { TranscriptionResult } from "@/components/transcription-result";
-import { ProgressBar, type Phase } from "@/components/progress-bar";
+import { LoadingIndicator, type Phase } from "@/components/progress-bar";
+import { HistoryList } from "@/components/history-list";
+import { addToHistory } from "@/lib/history";
 
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
@@ -11,6 +13,8 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase | "idle">("idle");
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [historyKey, setHistoryKey] = useState(0);
+  const xhrRef = useRef<XMLHttpRequest | null>(null);
 
   const loading = phase !== "idle";
 
@@ -43,6 +47,8 @@ export default function Home() {
         const data = JSON.parse(xhr.responseText);
         if (xhr.status >= 200 && xhr.status < 300) {
           setResult(data.text);
+          addToHistory({ filename: file.name, text: data.text });
+          setHistoryKey((k) => k + 1);
         } else {
           setError(data.error || "Transcription failed");
         }
@@ -50,20 +56,28 @@ export default function Home() {
         setError("Failed to parse server response.");
       }
       setPhase("idle");
+      xhrRef.current = null;
     });
 
     xhr.addEventListener("error", () => {
       setError("Network error. Please try again.");
       setPhase("idle");
+      xhrRef.current = null;
     });
 
     xhr.addEventListener("abort", () => {
       setPhase("idle");
+      xhrRef.current = null;
     });
 
     xhr.open("POST", "/api/transcribe");
     xhr.send(formData);
+    xhrRef.current = xhr;
   }, [file]);
+
+  const handleCancel = useCallback(() => {
+    xhrRef.current?.abort();
+  }, []);
 
   const handleReset = () => {
     setFile(null);
@@ -92,7 +106,19 @@ export default function Home() {
           )}
 
           {loading && (
-            <ProgressBar phase={phase as Phase} uploadProgress={uploadProgress} />
+            <div className="space-y-3">
+              <LoadingIndicator phase={phase as Phase} />
+              <button
+                onClick={handleCancel}
+                className="w-full py-2.5 px-4 rounded-xl text-sm font-medium
+                  text-neutral-700 dark:text-neutral-300
+                  bg-neutral-100 dark:bg-neutral-800
+                  hover:bg-neutral-200 dark:hover:bg-neutral-700
+                  transition-colors duration-200"
+              >
+                Cancel
+              </button>
+            </div>
           )}
 
           {error && (
@@ -116,6 +142,10 @@ export default function Home() {
               </button>
             </>
           )}
+        </div>
+
+        <div className="mt-12">
+          <HistoryList refreshKey={historyKey} />
         </div>
       </div>
     </main>

@@ -2,38 +2,36 @@
 
 export type Phase = "uploading" | "transcribing";
 
-interface ProgressBarProps {
+interface LoadingIndicatorProps {
   phase: Phase;
-  uploadProgress: number; // 0–1
 }
 
-export function ProgressBar({ phase, uploadProgress }: ProgressBarProps) {
-  const percent =
-    phase === "uploading"
-      ? Math.round(uploadProgress * 50)
-      : 50;
-
-  const label =
-    phase === "uploading"
-      ? `Uploading... ${Math.round(uploadProgress * 100)}%`
-      : "Transcribing...";
+export function LoadingIndicator({ phase }: LoadingIndicatorProps) {
+  const label = phase === "uploading" ? "Uploading..." : "Transcribing...";
 
   return (
-    <div className="space-y-2">
-      <div className="h-3 w-full rounded-full bg-neutral-200 dark:bg-neutral-700 overflow-hidden">
-        {phase === "transcribing" ? (
-          <div
-            className="h-full rounded-full bg-blue-500 animate-progress-pulse"
-            style={{ width: "100%" }}
-          />
-        ) : (
-          <div
-            className="h-full rounded-full bg-blue-600 transition-all duration-300 ease-out"
-            style={{ width: `${percent}%` }}
-          />
-        )}
+    <div className="flex flex-col items-center gap-3 py-4">
+      <div className="relative">
+        {/* Pulsing ring */}
+        <div className="absolute inset-0 rounded-full bg-blue-500/20 animate-ping-slow" />
+        <div className="relative w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center">
+          {/* Microphone icon */}
+          <svg
+            className="w-6 h-6 text-blue-600 dark:text-blue-400 animate-pulse-gentle"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={1.5}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z"
+            />
+          </svg>
+        </div>
       </div>
-      <p className="text-sm text-neutral-500 dark:text-neutral-400 text-center">
+      <p className="text-sm font-medium text-neutral-500 dark:text-neutral-400">
         {label}
       </p>
     </div>

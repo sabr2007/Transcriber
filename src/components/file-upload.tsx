@@ -71,6 +71,8 @@ export function FileUpload({ onFileSelect, disabled }: FileUploadProps) {
     (e: ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (file) validateAndSelect(file);
+      // Reset input so the same file can be re-selected
+      e.target.value = "";
     },
     [validateAndSelect]
   );
@@ -108,7 +110,7 @@ export function FileUpload({ onFileSelect, disabled }: FileUploadProps) {
 
         {selectedFile ? (
           <div>
-            <p className="text-lg font-medium text-neutral-900 dark:text-neutral-100">
+            <p className="text-lg font-medium text-neutral-900 dark:text-neutral-100 truncate max-w-full">
               {selectedFile.name}
             </p>
             <p className="text-sm text-neutral-500 mt-1">

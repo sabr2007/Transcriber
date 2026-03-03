@@ -10,9 +10,18 @@ export function TranscriptionResult({ text }: TranscriptionResultProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = useCallback(async () => {
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback: select textarea text for manual copy
+      const textarea = document.querySelector<HTMLTextAreaElement>("textarea[readonly]");
+      if (textarea) {
+        textarea.select();
+        textarea.setSelectionRange(0, textarea.value.length);
+      }
+    }
   }, [text]);
 
   return (

@@ -23,12 +23,27 @@ const ALLOWED_TYPES = new Set([
 
 export async function POST(request: Request) {
   try {
+    if (!process.env.OPENAI_API_KEY) {
+      console.error("OPENAI_API_KEY is not configured");
+      return NextResponse.json(
+        { error: "Transcription service is not configured." },
+        { status: 500 }
+      );
+    }
+
     const formData = await request.formData();
     const file = formData.get("file");
 
     if (!file || !(file instanceof File)) {
       return NextResponse.json(
         { error: "No file provided" },
+        { status: 400 }
+      );
+    }
+
+    if (file.size === 0) {
+      return NextResponse.json(
+        { error: "File is empty." },
         { status: 400 }
       );
     }
@@ -60,11 +75,8 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Transcription error:", error);
 
-    const message =
-      error instanceof Error ? error.message : "Transcription failed";
-
     return NextResponse.json(
-      { error: `Transcription failed: ${message}` },
+      { error: "Transcription failed. Please try again or use a different file." },
       { status: 500 }
     );
   }

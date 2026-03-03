@@ -1,2 +1,21 @@
 @import "tailwindcss";
 
+@keyframes progress-pulse {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.animate-progress-pulse {
+  background: linear-gradient(
+    90deg,
+    theme(--color-blue-600) 0%,
+    theme(--color-blue-400) 50%,
+    theme(--color-blue-600) 100%
+  );
+  background-size: 200% 100%;
+  animation: progress-pulse 2s ease-in-out infinite;
+}

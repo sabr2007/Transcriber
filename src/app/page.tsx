@@ -1,45 +1,69 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { FileUpload } from "@/components/file-upload";
 import { TranscriptionResult } from "@/components/transcription-result";
+import { ProgressBar, type Phase } from "@/components/progress-bar";
 
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [phase, setPhase] = useState<Phase | "idle">("idle");
+  const [uploadProgress, setUploadProgress] = useState(0);
 
-  const handleTranscribe = async () => {
+  const loading = phase !== "idle";
+
+  const handleTranscribe = useCallback(() => {
     if (!file) return;
 
-    setLoading(true);
+    setPhase("uploading");
+    setUploadProgress(0);
     setError(null);
     setResult(null);
 
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
+    const formData = new FormData();
+    formData.append("file", file);
 
-      const response = await fetch("/api/transcribe", {
-        method: "POST",
-        body: formData,
-      });
+    const xhr = new XMLHttpRequest();
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error || "Transcription failed");
-        return;
+    xhr.upload.addEventListener("progress", (e) => {
+      if (e.lengthComputable) {
+        setUploadProgress(e.loaded / e.total);
       }
+    });
 
-      setResult(data.text);
-    } catch {
+    xhr.upload.addEventListener("load", () => {
+      setUploadProgress(1);
+      setPhase("transcribing");
+    });
+
+    xhr.addEventListener("load", () => {
+      try {
+        const data = JSON.parse(xhr.responseText);
+        if (xhr.status >= 200 && xhr.status < 300) {
+          setResult(data.text);
+        } else {
+          setError(data.error || "Transcription failed");
+        }
+      } catch {
+        setError("Failed to parse server response.");
+      }
+      setPhase("idle");
+    });
+
+    xhr.addEventListener("error", () => {
       setError("Network error. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
+      setPhase("idle");
+    });
+
+    xhr.addEventListener("abort", () => {
+      setPhase("idle");
+    });
+
+    xhr.open("POST", "/api/transcribe");
+    xhr.send(formData);
+  }, [file]);
 
   const handleReset = () => {
     setFile(null);
@@ -57,16 +81,18 @@ export default function Home() {
         <div className="space-y-6">
           <FileUpload onFileSelect={setFile} disabled={loading} />
 
-          {file && !result && (
+          {file && !result && !loading && (
             <button
               onClick={handleTranscribe}
-              disabled={loading}
               className="w-full py-3 px-4 rounded-xl font-medium text-white
-                bg-blue-600 hover:bg-blue-700 disabled:opacity-50
-                disabled:cursor-not-allowed transition-colors duration-200"
+                bg-blue-600 hover:bg-blue-700 transition-colors duration-200"
             >
-              {loading ? "Transcribing..." : "Transcribe"}
+              Transcribe
             </button>
+          )}
+
+          {loading && (
+            <ProgressBar phase={phase as Phase} uploadProgress={uploadProgress} />
           )}
 
           {error && (

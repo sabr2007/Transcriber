@@ -214,15 +214,15 @@ describe("file size validation", () => {
     expect(result.valid).toBe(true);
   });
 
-  it("accepts file exactly at 25MB limit", () => {
+  it("accepts file exactly at 500MB limit", () => {
     const result = validateFile(makeFile("test.mp3", "audio/mpeg", MAX_FILE_SIZE));
     expect(result.valid).toBe(true);
   });
 
-  it("rejects file 1 byte over 25MB limit", () => {
+  it("rejects file 1 byte over 500MB limit", () => {
     const result = validateFile(makeFile("test.mp3", "audio/mpeg", MAX_FILE_SIZE + 1));
     expect(result.valid).toBe(false);
-    expect(result).toHaveProperty("error", "File too large. Maximum size is 25MB.");
+    expect(result).toHaveProperty("error", "File too large. Maximum size is 500MB.");
   });
 
   it("accepts small valid file", () => {

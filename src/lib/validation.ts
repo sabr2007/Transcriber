@@ -1,4 +1,4 @@
-export const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
+export const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB
 
 export const ALLOWED_TYPES = new Set([
   "audio/mpeg",
@@ -33,7 +33,7 @@ export function validateFile(file: { name: string; type: string; size: number })
   }
 
   if (file.size > MAX_FILE_SIZE) {
-    return { valid: false, error: "File too large. Maximum size is 25MB." };
+    return { valid: false, error: "File too large. Maximum size is 500MB." };
   }
 
   const ext = "." + file.name.split(".").pop()?.toLowerCase();

@@ -13,6 +13,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase | "idle">("idle");
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [chunkProgress, setChunkProgress] = useState<{ current: number; total: number } | null>(null);
   const [historyKey, setHistoryKey] = useState(0);
   const xhrRef = useRef<XMLHttpRequest | null>(null);
 
@@ -23,6 +24,7 @@ export default function Home() {
 
     setPhase("uploading");
     setUploadProgress(0);
+    setChunkProgress(null);
     setError(null);
     setResult(null);
 
@@ -30,6 +32,8 @@ export default function Home() {
     formData.append("file", file);
 
     const xhr = new XMLHttpRequest();
+    let isSSE = false;
+    let sseBuffer = "";
 
     xhr.upload.addEventListener("progress", (e) => {
       if (e.lengthComputable) {
@@ -42,7 +46,32 @@ export default function Home() {
       setPhase("transcribing");
     });
 
+    // Handle progressive SSE parsing for large file responses
+    xhr.addEventListener("readystatechange", () => {
+      if (xhr.readyState === 3 || xhr.readyState === 4) {
+        const contentType = xhr.getResponseHeader("Content-Type") || "";
+        if (contentType.includes("text/event-stream")) {
+          isSSE = true;
+          const newData = xhr.responseText.substring(sseBuffer.length);
+          sseBuffer = xhr.responseText;
+          parseSSEEvents(newData, file);
+        }
+      }
+    });
+
     xhr.addEventListener("load", () => {
+      if (isSSE) {
+        // SSE responses are handled by readystatechange + parseSSEEvents
+        // Final cleanup happens in the "done" / "error" event handlers
+        if (phase !== "idle") {
+          // If we didn't get a done/error event, something went wrong
+          setPhase("idle");
+          xhrRef.current = null;
+        }
+        return;
+      }
+
+      // JSON response (small file path)
       try {
         const data = JSON.parse(xhr.responseText);
         if (xhr.status >= 200 && xhr.status < 300) {
@@ -67,12 +96,61 @@ export default function Home() {
 
     xhr.addEventListener("abort", () => {
       setPhase("idle");
+      setChunkProgress(null);
       xhrRef.current = null;
     });
 
     xhr.open("POST", "/api/transcribe");
     xhr.send(formData);
     xhrRef.current = xhr;
+
+    function parseSSEEvents(data: string, currentFile: File) {
+      const lines = data.split("\n");
+      let currentEvent = "";
+
+      for (const line of lines) {
+        if (line.startsWith("event: ")) {
+          currentEvent = line.substring(7).trim();
+        } else if (line.startsWith("data: ")) {
+          const jsonStr = line.substring(6).trim();
+          try {
+            const payload = JSON.parse(jsonStr);
+            handleSSEEvent(currentEvent, payload, currentFile);
+          } catch {
+            // Incomplete JSON, ignore
+          }
+        }
+      }
+    }
+
+    function handleSSEEvent(event: string, payload: Record<string, unknown>, currentFile: File) {
+      switch (event) {
+        case "progress":
+          if (payload.phase === "processing") {
+            setPhase("processing");
+          } else if (payload.phase === "transcribing") {
+            setPhase("transcribing");
+            if (typeof payload.current === "number" && typeof payload.total === "number") {
+              setChunkProgress({ current: payload.current as number, total: payload.total as number });
+            }
+          }
+          break;
+        case "done":
+          setResult(payload.text as string);
+          addToHistory({ filename: currentFile.name, text: payload.text as string });
+          setHistoryKey((k) => k + 1);
+          setPhase("idle");
+          setChunkProgress(null);
+          xhrRef.current = null;
+          break;
+        case "error":
+          setError(payload.error as string);
+          setPhase("idle");
+          setChunkProgress(null);
+          xhrRef.current = null;
+          break;
+      }
+    }
   }, [file]);
 
   const handleCancel = useCallback(() => {
@@ -107,7 +185,7 @@ export default function Home() {
 
           {loading && (
             <div className="space-y-3">
-              <LoadingIndicator phase={phase as Phase} />
+              <LoadingIndicator phase={phase as Phase} chunkProgress={chunkProgress} />
               <button
                 onClick={handleCancel}
                 className="w-full py-2.5 px-4 rounded-xl text-sm font-medium

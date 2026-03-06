@@ -1,13 +1,28 @@
 "use client";
 
-export type Phase = "uploading" | "transcribing";
+export type Phase = "uploading" | "processing" | "transcribing";
 
 interface LoadingIndicatorProps {
   phase: Phase;
+  chunkProgress?: { current: number; total: number } | null;
 }
 
-export function LoadingIndicator({ phase }: LoadingIndicatorProps) {
-  const label = phase === "uploading" ? "Uploading..." : "Transcribing...";
+function getLabel(phase: Phase, chunkProgress?: { current: number; total: number } | null): string {
+  switch (phase) {
+    case "uploading":
+      return "Uploading...";
+    case "processing":
+      return "Preparing audio...";
+    case "transcribing":
+      if (chunkProgress && chunkProgress.total > 1) {
+        return `Transcribing chunk ${chunkProgress.current} of ${chunkProgress.total}...`;
+      }
+      return "Transcribing...";
+  }
+}
+
+export function LoadingIndicator({ phase, chunkProgress }: LoadingIndicatorProps) {
+  const label = getLabel(phase, chunkProgress);
 
   return (
     <div className="flex flex-col items-center gap-3 py-4">
@@ -34,6 +49,16 @@ export function LoadingIndicator({ phase }: LoadingIndicatorProps) {
       <p className="text-sm font-medium text-neutral-500 dark:text-neutral-400">
         {label}
       </p>
+      {chunkProgress && chunkProgress.total > 1 && (
+        <div className="w-48">
+          <div className="h-1.5 bg-neutral-200 dark:bg-neutral-700 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-blue-500 rounded-full transition-all duration-300"
+              style={{ width: `${(chunkProgress.current / chunkProgress.total) * 100}%` }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

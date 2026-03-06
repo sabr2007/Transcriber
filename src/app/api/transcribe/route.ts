@@ -6,6 +6,7 @@ import { saveUploadedFile, chunkAudio, cleanup } from "@/lib/chunker";
 
 const WHISPER_LIMIT = 25 * 1024 * 1024; // 25MB
 const MAX_RETRIES = 2;
+const DRY_RUN = process.env.DRY_RUN === "true";
 
 export async function POST(request: Request) {
   if (!process.env.OPENAI_API_KEY) {
@@ -38,6 +39,10 @@ export async function POST(request: Request) {
 
   // Small file: direct Whisper transcription (no SSE needed)
   if (file.size <= WHISPER_LIMIT) {
+    if (DRY_RUN) {
+      await new Promise((r) => setTimeout(r, 3_000));
+      return NextResponse.json({ text: `[DRY RUN] Mock transcription for "${file.name}"` });
+    }
     try {
       const transcription = await openai.audio.transcriptions.create({
         file: file,
@@ -85,8 +90,23 @@ export async function POST(request: Request) {
             total: totalChunks,
           });
 
-          const chunkText = await transcribeWithRetry(openai, chunks[i], MAX_RETRIES, i + 1);
-          texts.push(chunkText);
+          // Send keepalive comments to prevent proxy idle-timeout disconnects
+          const keepalive = setInterval(() => {
+            controller.enqueue(encoder.encode(": keepalive\n\n"));
+          }, 15_000);
+
+          try {
+            let chunkText: string;
+            if (DRY_RUN) {
+              await new Promise((r) => setTimeout(r, 30_000));
+              chunkText = `[DRY RUN] Chunk ${i + 1} mock text.`;
+            } else {
+              chunkText = await transcribeWithRetry(openai, chunks[i], MAX_RETRIES, i + 1);
+            }
+            texts.push(chunkText);
+          } finally {
+            clearInterval(keepalive);
+          }
         }
 
         const fullText = texts.join(" ");
@@ -111,6 +131,7 @@ export async function POST(request: Request) {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
       Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
     },
   });
 }

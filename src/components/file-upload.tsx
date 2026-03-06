@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useState, useRef, type DragEvent, type ChangeEvent } from "react";
-
-const MAX_FILE_SIZE = 25 * 1024 * 1024;
+import { MAX_FILE_SIZE } from "@/lib/validation";
 
 const ACCEPTED_EXTENSIONS = [
   ".mp3", ".mp4", ".mpeg", ".mpga", ".m4a", ".wav", ".webm",
@@ -33,7 +32,7 @@ export function FileUpload({ onFileSelect, disabled }: FileUploadProps) {
       setError(null);
 
       if (file.size > MAX_FILE_SIZE) {
-        setError(`File too large (${formatFileSize(file.size)}). Maximum is 25MB.`);
+        setError(`File too large (${formatFileSize(file.size)}). Maximum is ${MAX_FILE_SIZE / (1024 * 1024)}MB.`);
         return;
       }
 
@@ -126,7 +125,7 @@ export function FileUpload({ onFileSelect, disabled }: FileUploadProps) {
               Supported: {ACCEPTED_EXTENSIONS.join(", ")}
             </p>
             <p className="text-sm text-neutral-400 dark:text-neutral-500">
-              Max size: 25MB
+              Max size: {MAX_FILE_SIZE / (1024 * 1024)}MB
             </p>
           </div>
         )}

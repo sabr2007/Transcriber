@@ -33,7 +33,8 @@ export default function Home() {
 
     const xhr = new XMLHttpRequest();
     let isSSE = false;
-    let sseBuffer = "";
+    let parsedLength = 0;
+    let doneHandled = false;
 
     xhr.upload.addEventListener("progress", (e) => {
       if (e.lengthComputable) {
@@ -46,25 +47,23 @@ export default function Home() {
       setPhase("transcribing");
     });
 
-    // Handle progressive SSE parsing for large file responses
+    // Progressive SSE parsing — only process complete events (delimited by \n\n)
     xhr.addEventListener("readystatechange", () => {
-      if (xhr.readyState === 3 || xhr.readyState === 4) {
+      if (xhr.readyState >= 3) {
         const contentType = xhr.getResponseHeader("Content-Type") || "";
         if (contentType.includes("text/event-stream")) {
           isSSE = true;
-          const newData = xhr.responseText.substring(sseBuffer.length);
-          sseBuffer = xhr.responseText;
-          parseSSEEvents(newData, file);
+          processCompleteEvents();
         }
       }
     });
 
     xhr.addEventListener("load", () => {
       if (isSSE) {
-        // SSE responses are handled by readystatechange + parseSSEEvents
-        // Final cleanup happens in the "done" / "error" event handlers
-        if (phase !== "idle") {
-          // If we didn't get a done/error event, something went wrong
+        // Final parse to catch any remaining events (including "done")
+        processCompleteEvents();
+        // Safety net: if "done"/"error" event was never received
+        if (!doneHandled) {
           setPhase("idle");
           xhrRef.current = null;
         }
@@ -104,26 +103,37 @@ export default function Home() {
     xhr.send(formData);
     xhrRef.current = xhr;
 
-    function parseSSEEvents(data: string, currentFile: File) {
-      const lines = data.split("\n");
-      let currentEvent = "";
+    function processCompleteEvents() {
+      const raw = xhr.responseText.substring(parsedLength);
+      // Only process up to the last complete event boundary (\n\n)
+      const lastBoundary = raw.lastIndexOf("\n\n");
+      if (lastBoundary === -1) return;
 
-      for (const line of lines) {
-        if (line.startsWith("event: ")) {
-          currentEvent = line.substring(7).trim();
-        } else if (line.startsWith("data: ")) {
-          const jsonStr = line.substring(6).trim();
+      const completePart = raw.substring(0, lastBoundary);
+      parsedLength += lastBoundary + 2;
+
+      // Split into individual events and parse each
+      const eventBlocks = completePart.split("\n\n").filter(Boolean);
+      for (const block of eventBlocks) {
+        const lines = block.split("\n");
+        let eventType = "";
+        let data = "";
+        for (const line of lines) {
+          if (line.startsWith("event: ")) eventType = line.substring(7).trim();
+          else if (line.startsWith("data: ")) data = line.substring(6).trim();
+        }
+        if (eventType && data) {
           try {
-            const payload = JSON.parse(jsonStr);
-            handleSSEEvent(currentEvent, payload, currentFile);
+            const payload = JSON.parse(data);
+            handleSSEEvent(eventType, payload);
           } catch {
-            // Incomplete JSON, ignore
+            // Malformed JSON, skip
           }
         }
       }
     }
 
-    function handleSSEEvent(event: string, payload: Record<string, unknown>, currentFile: File) {
+    function handleSSEEvent(event: string, payload: Record<string, unknown>) {
       switch (event) {
         case "progress":
           if (payload.phase === "processing") {
@@ -136,14 +146,16 @@ export default function Home() {
           }
           break;
         case "done":
+          doneHandled = true;
           setResult(payload.text as string);
-          addToHistory({ filename: currentFile.name, text: payload.text as string });
+          addToHistory({ filename: file!.name, text: payload.text as string });
           setHistoryKey((k) => k + 1);
           setPhase("idle");
           setChunkProgress(null);
           xhrRef.current = null;
           break;
         case "error":
+          doneHandled = true;
           setError(payload.error as string);
           setPhase("idle");
           setChunkProgress(null);

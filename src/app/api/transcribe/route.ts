@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import OpenAI, { toFile } from "openai";
 import { NextResponse } from "next/server";
 import { createReadStream } from "fs";
 import { validateFile } from "@/lib/validation";
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     }
     try {
       const transcription = await openai.audio.transcriptions.create({
-        file: file,
+        file: await toFile(Buffer.from(await file.arrayBuffer()), file.name),
         model: "whisper-1",
       });
       return NextResponse.json({ text: transcription.text });

@@ -44,8 +44,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ text: `[DRY RUN] Mock transcription for "${file.name}"` });
     }
     try {
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const ext = file.name.split(".").pop()?.toLowerCase() || "";
+      const mimeMap: Record<string, string> = {
+        mp3: "audio/mpeg", m4a: "audio/mp4", mp4: "video/mp4",
+        mpeg: "audio/mpeg", mpga: "audio/mpeg", wav: "audio/wav",
+        webm: "audio/webm", ogg: "audio/ogg", flac: "audio/flac",
+        oga: "audio/ogg",
+      };
+      const contentType = mimeMap[ext] || file.type || "audio/mpeg";
+      console.log(`Transcribing file: name="${file.name}", ext="${ext}", type="${file.type}", contentType="${contentType}", size=${buffer.length}`);
+      const uploadFile = await toFile(buffer, file.name, { type: contentType });
       const transcription = await openai.audio.transcriptions.create({
-        file: await toFile(Buffer.from(await file.arrayBuffer()), file.name),
+        file: uploadFile,
         model: "whisper-1",
       });
       return NextResponse.json({ text: transcription.text });
